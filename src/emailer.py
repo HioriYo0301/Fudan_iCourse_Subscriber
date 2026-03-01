@@ -4,6 +4,8 @@ import smtplib
 from collections import OrderedDict
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from html import escape
+from email.utils import formataddr
 
 from . import config
 
@@ -66,11 +68,11 @@ class Emailer:
         # HTML
         html_sections = []
         for course_title, lectures in courses.items():
-            html_sections.append(f"<h2>{course_title}</h2>")
+            html_sections.append(f"<h2>{escape(course_title)}</h2>")
             for lec in lectures:
                 html_sections.append(
-                    f"<h3>{lec['sub_title']} "
-                    f"<small>({lec['date']})</small></h3>"
+                    f"<h3>{escape(lec['sub_title'])} "
+                    f"<small>({escape(lec['date'])})</small></h3>"
                 )
                 html_sections.append(_md_to_html(lec["summary"]))
                 html_sections.append("<hr>")
@@ -78,7 +80,7 @@ class Emailer:
 
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = self.sender
+        msg["From"] = formataddr(("iCourse Subscriber", self.sender))
         msg["To"] = self.receiver
         msg.attach(MIMEText(plain, "plain", "utf-8"))
         msg.attach(MIMEText(html, "html", "utf-8"))

@@ -35,6 +35,7 @@ def process_lecture(
     date = lecture.get("date", "")
 
     print(f"\n  -- Processing: {sub_title} ({date})")
+    t_start = time.time()
 
     # 1) Download video
     video_url = client.get_video_url(course_id, sub_id)
@@ -71,7 +72,8 @@ def process_lecture(
     db.update_summary(sub_id, summary)
 
     db.mark_processed(sub_id)
-    print(f"    Done: {sub_title}")
+    elapsed = time.time() - t_start
+    print(f"    Done: {sub_title} (total {elapsed:.0f}s)")
     return summary
 
 
@@ -100,7 +102,9 @@ def _check_session(client: ICourseClient) -> ICourseClient:
             f"{config.ICOURSE_BASE}/userapi/v1/infosimple", timeout=10
         )
         if resp.status_code == 200:
-            return client
+            data = resp.json()
+            if data.get("code") in (0, 200):
+                return client
     except Exception:
         pass
     print("[Session] WebVPN session expired, re-logging in...")

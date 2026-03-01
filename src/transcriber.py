@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import time
 
 import numpy as np
 import sherpa_onnx
@@ -57,6 +58,7 @@ class Transcriber:
         → returns concatenated text.
         """
         self._init()
+        t0 = time.time()
 
         # Drain any leftover VAD state from a previous (possibly failed) call
         self._vad.flush()
@@ -126,7 +128,8 @@ class Transcriber:
         proc.wait()
         if proc.returncode != 0:
             raise RuntimeError(f"ffmpeg exited with code {proc.returncode}")
+        elapsed = time.time() - t0
         duration = total_read / sample_rate
         transcript = " ".join(texts)
-        print(f"[Transcriber] Done: {duration:.0f}s audio, {len(transcript)} chars, {len(texts)} segments.")
+        print(f"[Transcriber] Done: {duration:.0f}s audio, {len(transcript)} chars, {len(texts)} segments in {elapsed:.0f}s")
         return transcript

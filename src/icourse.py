@@ -243,7 +243,7 @@ class ICourseClient:
         try:
             info = self.get_sub_info(course_id, sub_id)
         except Exception as e:
-            print(f"    Failed to get sub info for {sub_id}")
+            print(f"    Failed to get sub info for {sub_id}: {type(e).__name__}")
             return None
 
         # Get server timestamp for signing
@@ -287,6 +287,7 @@ class ICourseClient:
                 pass
 
         if not base_url:
+            print(f"    No video URL found for {sub_id} (tried video_list, playurl, sub_detail)")
             return None
 
         return self.sign_video_url(base_url, now=now)
@@ -312,6 +313,7 @@ class ICourseClient:
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
         tmp_path = output_path + ".tmp"
+        t0 = time.time()
 
         if video_url.startswith(config.WEBVPN_BASE):
             resp = self.vpn.get_raw(video_url, stream=True, timeout=300)
@@ -346,4 +348,7 @@ class ICourseClient:
             )
 
         os.replace(tmp_path, output_path)
+        elapsed = time.time() - t0
+        size_mb = downloaded / (1024 * 1024)
+        print(f"    Downloaded: {size_mb:.1f}MB in {elapsed:.0f}s")
         return output_path

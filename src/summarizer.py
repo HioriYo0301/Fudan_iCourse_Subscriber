@@ -1,5 +1,7 @@
 """LLM-based course lecture summarization via ModelScope API."""
 
+import time
+
 from openai import OpenAI
 
 from . import config
@@ -43,6 +45,7 @@ class Summarizer:
         if not content or not content.strip():
             return "（内容为空）"
 
+        t0 = time.time()
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
@@ -54,4 +57,7 @@ class Summarizer:
             ],
             temperature=0.3,
         )
-        return response.choices[0].message.content
+        result = response.choices[0].message.content
+        elapsed = time.time() - t0
+        print(f"[Summarizer] Done: {len(content)} chars input → {len(result)} chars output in {elapsed:.0f}s")
+        return result
