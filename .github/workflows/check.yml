@@ -1,0 +1,91 @@
+name: iCourse Check
+
+on:
+  schedule:
+    # Every day at 22:00 UTC+8 (14:00 UTC)
+    - cron: "0 14 * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      # Cache ASR models (fixed key — only re-download if model version changes)
+      - name: Cache ASR models
+        id: cache-models
+        uses: actions/cache@v4
+        with:
+          path: |
+            sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/
+            silero_vad.onnx
+          key: asr-models-sensevoice-2024-07-17
+
+      - name: Download ASR models
+        if: steps.cache-models.outputs.cache-hit != 'true'
+        run: |
+          wget -q https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2
+          tar xf sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2
+          rm sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2
+          wget -q https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx
+
+      # Restore encrypted database from cache
+      - name: Restore database
+        uses: actions/cache/restore@v4
+        with:
+          path: data/icourse.db.enc
+          key: icourse-db
+          restore-keys: icourse-db
+
+      - name: Decrypt database
+        if: hashFiles('data/icourse.db.enc') != ''
+        env:
+          DB_KEY: ${{ secrets.STUID }}${{ secrets.UISPSW }}${{ secrets.DASHSCOPE_API_KEY }}${{ secrets.SMTP_PASSWORD }}
+        run: |
+          openssl enc -aes-256-cbc -d -pbkdf2 \
+            -in data/icourse.db.enc -out data/icourse.db \
+            -pass env:DB_KEY
+          rm data/icourse.db.enc
+
+      - name: Run
+        env:
+          StuId: ${{ secrets.STUID }}
+          UISPsw: ${{ secrets.UISPSW }}
+          COURSE_IDS: ${{ secrets.COURSE_IDS }}
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+          SMTP_EMAIL: ${{ secrets.SMTP_EMAIL }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
+        run: python main.py
+
+      # Encrypt and save database
+      - name: Encrypt database
+        if: always() && hashFiles('data/icourse.db') != ''
+        env:
+          DB_KEY: ${{ secrets.STUID }}${{ secrets.UISPSW }}${{ secrets.DASHSCOPE_API_KEY }}${{ secrets.SMTP_PASSWORD }}
+        run: |
+          openssl enc -aes-256-cbc -salt -pbkdf2 \
+            -in data/icourse.db -out data/icourse.db.enc \
+            -pass env:DB_KEY
+
+      - name: Save database
+        uses: actions/cache/save@v4
+        if: always() && hashFiles('data/icourse.db.enc') != ''
+        with:
+          path: data/icourse.db.enc
+          key: icourse-db-${{ github.run_id }}

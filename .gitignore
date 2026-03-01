@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+.env
+data/
+*.mp4
+*.wav
+tests/
+
+# ASR models (downloaded at runtime)
+sherpa-onnx-sense-voice-*/
+silero_vad.onnx
+vosk-model-*/
+
+# IDE & misc
+.vscode/
+.idea/
+.playwright-mcp/
+docs/
+
+任务描述.md
+get_course_text/

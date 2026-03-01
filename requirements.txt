@@ -1,0 +1,6 @@
+requests
+pycryptodome
+sherpa-onnx
+numpy
+openai
+markdown

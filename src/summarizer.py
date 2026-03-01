@@ -1,0 +1,55 @@
+"""LLM-based course lecture summarization via ModelScope API."""
+
+from openai import OpenAI
+
+from . import config
+
+SYSTEM_PROMPT = (
+    "你是一个专业的课程助教。请总结以下课程录音文本的重点内容。要求：\n"
+    "1. 使用Markdown格式。\n"
+    "2. 语言通顺，逻辑清晰，去除口语化表达。\n"
+    "3. 不要输出标题（标题由程序自动生成）。\n"
+    '4. 直接输出总结内容，不要包含"好的"、"以下是总结"等客套话。\n'
+    "5. 结构清晰，使用列表、加粗等Markdown语法。"
+    "在使用markdown时，你不能使用高于三级的标题符号。"
+    "也就是说，你可以用###、####但是不能用##。"
+)
+
+
+class Summarizer:
+    """Course lecture summarizer using ModelScope OpenAI-compatible API."""
+
+    def __init__(self):
+        if not config.DASHSCOPE_API_KEY:
+            raise ValueError("DASHSCOPE_API_KEY is not set")
+        self.client = OpenAI(
+            api_key=config.DASHSCOPE_API_KEY,
+            base_url=config.LLM_BASE_URL,
+        )
+        self.model = config.LLM_MODEL
+
+    def summarize(self, title: str, content: str) -> str:
+        """Summarize lecture content.
+
+        Args:
+            title: Lecture title for context.
+            content: Full transcript text.
+
+        Returns:
+            Markdown-formatted summary string.
+        """
+        if not content or not content.strip():
+            return "（内容为空）"
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": f"以下是课程《{title}》的录音文本，请总结：\n\n{content}",
+                },
+            ],
+            temperature=0.3,
+        )
+        return response.choices[0].message.content

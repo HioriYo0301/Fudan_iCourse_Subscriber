@@ -1,0 +1,111 @@
+"""SQLite storage for tracking courses and lectures."""
+
+import os
+import sqlite3
+from datetime import datetime
+
+from . import config
+
+
+class Database:
+    """SQLite database for course and lecture tracking."""
+
+    def __init__(self, db_path: str | None = None):
+        self.db_path = db_path or config.DB_PATH
+        os.makedirs(os.path.dirname(self.db_path) or ".", exist_ok=True)
+        self.conn = sqlite3.connect(self.db_path)
+        self.conn.row_factory = sqlite3.Row
+        self._init_tables()
+
+    def _init_tables(self):
+        with self.conn:
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS courses (
+                    course_id TEXT PRIMARY KEY,
+                    title TEXT,
+                    teacher TEXT
+                )
+            """)
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS lectures (
+                    sub_id TEXT PRIMARY KEY,
+                    course_id TEXT NOT NULL,
+                    sub_title TEXT,
+                    date TEXT,
+                    transcript TEXT,
+                    summary TEXT,
+                    processed_at TEXT,
+                    emailed_at TEXT,
+                    FOREIGN KEY (course_id) REFERENCES courses(course_id)
+                )
+            """)
+
+    def upsert_course(self, course_id: str, title: str, teacher: str):
+        with self.conn:
+            self.conn.execute(
+                """INSERT INTO courses (course_id, title, teacher)
+                   VALUES (?, ?, ?)
+                   ON CONFLICT(course_id) DO UPDATE SET
+                       title=excluded.title, teacher=excluded.teacher""",
+                (course_id, title, teacher),
+            )
+
+    def insert_lecture(
+        self, sub_id: str, course_id: str, sub_title: str, date: str
+    ) -> bool:
+        """Insert a new lecture. Returns True if inserted, False if already exists."""
+        try:
+            with self.conn:
+                self.conn.execute(
+                    """INSERT INTO lectures (sub_id, course_id, sub_title, date)
+                       VALUES (?, ?, ?, ?)""",
+                    (sub_id, course_id, sub_title, date),
+                )
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def get_processed_sub_ids(self, course_id: str) -> set[str]:
+        """Return sub_ids that have been fully processed."""
+        rows = self.conn.execute(
+            "SELECT sub_id FROM lectures WHERE course_id = ? AND processed_at IS NOT NULL",
+            (course_id,),
+        ).fetchall()
+        return {row["sub_id"] for row in rows}
+
+    def get_unprocessed_lectures(self, course_id: str | None = None) -> list[dict]:
+        query = "SELECT * FROM lectures WHERE processed_at IS NULL"
+        params = ()
+        if course_id:
+            query += " AND course_id = ?"
+            params = (course_id,)
+        rows = self.conn.execute(query, params).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_transcript(self, sub_id: str, transcript: str):
+        with self.conn:
+            self.conn.execute(
+                "UPDATE lectures SET transcript = ? WHERE sub_id = ?",
+                (transcript, sub_id),
+            )
+
+    def update_summary(self, sub_id: str, summary: str):
+        with self.conn:
+            self.conn.execute(
+                "UPDATE lectures SET summary = ? WHERE sub_id = ?",
+                (summary, sub_id),
+            )
+
+    def mark_processed(self, sub_id: str):
+        with self.conn:
+            self.conn.execute(
+                "UPDATE lectures SET processed_at = ? WHERE sub_id = ?",
+                (datetime.now().isoformat(), sub_id),
+            )
+
+    def mark_emailed(self, sub_id: str):
+        with self.conn:
+            self.conn.execute(
+                "UPDATE lectures SET emailed_at = ? WHERE sub_id = ?",
+                (datetime.now().isoformat(), sub_id),
+            )
