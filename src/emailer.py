@@ -95,7 +95,7 @@ ul, ol { padding-left: 24px; }
 li { margin-bottom: 4px; }
 """
 
-_PDF_LATEX_SCALE = 2.5
+_PDF_LATEX_SCALE = 1
 _MIN_INLINE_HEIGHT = 13  # minimum logical height for inline formulas (px)
 
 _IMAGE_CACHE: dict[str, tuple] = {}
